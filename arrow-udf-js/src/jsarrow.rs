@@ -562,12 +562,18 @@ impl Converter {
                 let (key_field, value_field) = match inner.data_type() {
                     DataType::Struct(fields) => {
                         if fields.len() != 2 {
-                            return Err(anyhow::anyhow!("Invalid map inner struct fields length {}", fields.len()));
+                            return Err(anyhow::anyhow!(
+                                "Invalid map inner struct fields length {}",
+                                fields.len()
+                            ));
                         }
                         (fields[0].clone(), fields[1].clone())
                     }
                     _ => {
-                        return Err(anyhow::anyhow!("Invalid map inner datatype {}", inner.data_type()));
+                        return Err(anyhow::anyhow!(
+                            "Invalid map inner datatype {}",
+                            inner.data_type()
+                        ));
                     }
                 };
                 let mut flatten_keys = vec![];
@@ -590,7 +596,8 @@ impl Converter {
                     self.build_array(&key_field, ctx, flatten_keys)?,
                     self.build_array(&value_field, ctx, flatten_values)?,
                 ];
-                let struct_array = StructArray::new(Fields::from([key_field, value_field]), arrays, None);
+                let struct_array =
+                    StructArray::new(Fields::from([key_field, value_field]), arrays, None);
 
                 let nulls = values
                     .iter()

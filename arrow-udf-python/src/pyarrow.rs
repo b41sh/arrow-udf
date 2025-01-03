@@ -17,7 +17,12 @@
 use arrow_array::{array::*, builder::*};
 use arrow_buffer::OffsetBuffer;
 use arrow_schema::{DataType, Field, Fields};
-use pyo3::{exceptions::PyTypeError, prelude::PyDictMethods, types::{PyAnyMethods, PyDict}, IntoPy, PyObject, PyResult, Python};
+use pyo3::{
+    exceptions::PyTypeError,
+    prelude::PyDictMethods,
+    types::{PyAnyMethods, PyDict},
+    IntoPy, PyObject, PyResult, Python,
+};
 use std::{borrow::Cow, sync::Arc};
 
 macro_rules! get_pyobject {
@@ -215,7 +220,7 @@ impl Converter {
                     return Err(PyTypeError::new_err(format!(
                         "Invalid map inner struct fields length {}",
                         list.num_columns()
-                    )))
+                    )));
                 }
                 let fields = list.fields();
                 let key_field = &fields[0];
@@ -412,7 +417,8 @@ impl Converter {
                     self.build_array(&key_field, py, &flatten_keys)?,
                     self.build_array(&value_field, py, &flatten_values)?,
                 ];
-                let struct_array = StructArray::new(Fields::from([key_field, value_field]), arrays, None);
+                let struct_array =
+                    StructArray::new(Fields::from([key_field, value_field]), arrays, None);
                 let nulls = values.iter().map(|v| !v.is_none(py)).collect();
                 Ok(Arc::new(MapArray::new(
                     inner.clone(),

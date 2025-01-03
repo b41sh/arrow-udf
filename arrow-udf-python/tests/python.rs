@@ -314,23 +314,24 @@ def to_map(x, y):
 
     let schema = Schema::new(vec![
         Field::new("x", DataType::Utf8, true),
-        Field::new("y", DataType::Utf8, true)
+        Field::new("y", DataType::Utf8, true),
     ]);
     let arg0 = StringArray::from(vec![Some("ab"), None, Some("c")]);
     let arg1 = StringArray::from(vec![Some("xy"), None, Some("z")]);
-    let input = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(arg0), Arc::new(arg1)]).unwrap();
+    let input =
+        RecordBatch::try_new(Arc::new(schema), vec![Arc::new(arg0), Arc::new(arg1)]).unwrap();
 
     let output = runtime.call("to_map", &input).unwrap();
     check(
         &[output],
         expect![[r#"
-        +----------------+
-        | to_large_array |
-        +----------------+
-        | [1, 2, 3]      |
-        |                |
-        | [3, 4, 5]      |
-        +----------------+"#]],
+        +------------------+
+        | to_map           |
+        +------------------+
+        | {k1: ab, k2: xy} |
+        |                  |
+        | {k1: c, k2: z}   |
+        +------------------+"#]],
     );
 }
 
