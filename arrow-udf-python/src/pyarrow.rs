@@ -208,6 +208,30 @@ impl Converter {
                 }
                 values.into_py(py)
             }
+            DataType::Map(_, _) => {
+                let array = array.as_any().downcast_ref::<MapArray>().unwrap();
+                let list = array.value(i);
+                if list.num_columns() != 2 {
+                    return Err(Error::Unknown);
+                }
+                let fields = list.fields();
+                let key_field = &fields[0];
+                let value_field = &fields[1];
+
+                let columns = list.columns();
+                let key_column = &columns[0];
+                let value_column = &columns[1];
+
+                let object = Object::new(ctx.clone())?;
+                for j in 0..list.len() {
+                    let key = self.get_jsvalue(ctx, key_field, key_column, j)?;
+                    let value = self.get_jsvalue(ctx, value_field, value_column, j)?;
+                    object.set(key, value)?;
+                }
+                Ok(object.into_value())
+            }
+
+            
             DataType::Struct(fields) => {
                 let array = array.as_any().downcast_ref::<StructArray>().unwrap();
                 let object = py.eval_bound("Struct()", None, None)?;

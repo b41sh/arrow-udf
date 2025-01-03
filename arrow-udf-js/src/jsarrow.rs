@@ -18,7 +18,7 @@
 use anyhow::{Context, Result};
 use arrow_array::{array::*, builder::*, ArrowNativeTypeOp};
 use arrow_buffer::{i256, OffsetBuffer};
-use arrow_schema::{DataType, Field};
+use arrow_schema::{DataType, Field, Fields};
 use rquickjs::{
     function::Args, function::Constructor, Ctx, Error, FromJs, Function, IntoJs, Object,
     TypedArray, Value,
@@ -332,6 +332,28 @@ impl Converter {
                     }
                 }
             }
+            DataType::Map(_, _) => {
+                let array = array.as_any().downcast_ref::<MapArray>().unwrap();
+                let list = array.value(i);
+                if list.num_columns() != 2 {
+                    return Err(Error::Unknown);
+                }
+                let fields = list.fields();
+                let key_field = &fields[0];
+                let value_field = &fields[1];
+
+                let columns = list.columns();
+                let key_column = &columns[0];
+                let value_column = &columns[1];
+
+                let object = Object::new(ctx.clone())?;
+                for j in 0..list.len() {
+                    let key = self.get_jsvalue(ctx, key_field, key_column, j)?;
+                    let value = self.get_jsvalue(ctx, value_field, value_column, j)?;
+                    object.set(key, value)?;
+                }
+                Ok(object.into_value())
+            }
             DataType::Struct(fields) => {
                 let array = array.as_any().downcast_ref::<StructArray>().unwrap();
                 let object = Object::new(ctx.clone())?;
@@ -534,6 +556,52 @@ impl Converter {
                     OffsetBuffer::new(offsets.into()),
                     values_array,
                     Some(nulls),
+                )))
+            }
+            DataType::Map(inner, _) => {
+                let (key_field, value_field) = match inner.data_type() {
+                    DataType::Struct(fields) => {
+                        if fields.len() != 2 {
+                            return Err(anyhow::anyhow!("Invalid map inner struct fields length {}", fields.len()));
+                        }
+                        (fields[0].clone(), fields[1].clone())
+                    }
+                    _ => {
+                        return Err(anyhow::anyhow!("Invalid map inner datatype {}", inner.data_type()));
+                    }
+                };
+                let mut key_column = Vec::with_capacity(values.len());
+                let mut value_column = Vec::with_capacity(values.len());
+                let mut offsets = Vec::<i32>::with_capacity(values.len() + 1);
+                offsets.push(0);
+                for val in &values {
+                    if !val.is_null() && !val.is_undefined() {
+                        let object = val.as_object().context("failed to convert to object")?;
+                        for key in object.keys() {
+                            key_column.push(key?);
+                        }
+                        for value in object.values() {
+                            value_column.push(value?);
+                        }
+                    }
+                    offsets.push(key_column.len() as i32);
+                }
+                let arrays = vec![
+                    self.build_array(&key_field, ctx, key_column)?,
+                    self.build_array(&value_field, ctx, value_column)?,
+                ];
+                let struct_array = StructArray::new(Fields::from([key_field, value_field]), arrays, None);
+
+                let nulls = values
+                    .iter()
+                    .map(|v| !v.is_null() && !v.is_undefined())
+                    .collect();
+                Ok(Arc::new(MapArray::new(
+                    inner.clone(),
+                    OffsetBuffer::new(offsets.into()),
+                    struct_array,
+                    Some(nulls),
+                    false,
                 )))
             }
             DataType::Struct(fields) => {

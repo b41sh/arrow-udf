@@ -22,7 +22,7 @@ use arrow_array::{
 };
 use arrow_buffer::i256;
 use arrow_cast::pretty::{pretty_format_batches, pretty_format_columns};
-use arrow_schema::{DataType, Field, Schema};
+use arrow_schema::{DataType, Field, Fields, Schema};
 use arrow_udf_js::{CallMode, Runtime};
 use expect_test::{expect, Expect};
 
@@ -756,6 +756,58 @@ fn test_return_large_array() {
         |                |
         | [3, 4, 5]      |
         +----------------+"#]],
+    );
+}
+
+#[test]
+fn test_return_map() {
+    let mut runtime = Runtime::new().unwrap();
+
+    runtime
+        .add_function(
+            "to_map",
+            DataType::Map(
+                Arc::new(Field::new(
+                    "entries",
+                    DataType::Struct(Fields::from(vec![
+                        Field::new("keys", DataType::Utf8, true),
+                        Field::new("values", DataType::Utf8, true),
+                    ])),
+                    false,
+                )),
+                false,
+            ),
+            CallMode::CalledOnNullInput,
+            r#"
+            export function to_map(x, y) {
+                if(x == null || y == null) {
+                    return null;
+                }
+                return {k1:x,k2:y};
+            }
+            "#,
+        )
+        .unwrap();
+
+    let schema = Schema::new(vec![
+        Field::new("x", DataType::Utf8, true),
+        Field::new("y", DataType::Utf8, true)
+    ]);
+    let arg0 = StringArray::from(vec![Some("ab"), None, Some("c")]);
+    let arg1 = StringArray::from(vec![Some("xy"), None, Some("z")]);
+    let input = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(arg0), Arc::new(arg1)]).unwrap();
+
+    let output = runtime.call("to_map", &input).unwrap();
+    check(
+        &[output],
+        expect![[r#"
+        +------------------+
+        | to_map           |
+        +------------------+
+        | {k1: ab, k2: xy} |
+        |                  |
+        | {k1: c, k2: z}   |
+        +------------------+"#]],
     );
 }
 
