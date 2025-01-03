@@ -343,13 +343,13 @@ impl Converter {
                 let value_field = &fields[1];
 
                 let columns = list.columns();
-                let key_column = &columns[0];
-                let value_column = &columns[1];
+                let keys = &columns[0];
+                let values = &columns[1];
 
                 let object = Object::new(ctx.clone())?;
                 for j in 0..list.len() {
-                    let key = self.get_jsvalue(ctx, key_field, key_column, j)?;
-                    let value = self.get_jsvalue(ctx, value_field, value_column, j)?;
+                    let key = self.get_jsvalue(ctx, key_field, keys, j)?;
+                    let value = self.get_jsvalue(ctx, value_field, values, j)?;
                     object.set(key, value)?;
                 }
                 Ok(object.into_value())
@@ -570,25 +570,25 @@ impl Converter {
                         return Err(anyhow::anyhow!("Invalid map inner datatype {}", inner.data_type()));
                     }
                 };
-                let mut key_column = Vec::with_capacity(values.len());
-                let mut value_column = Vec::with_capacity(values.len());
+                let mut flatten_keys = vec![];
+                let mut flatten_values = vec![];
                 let mut offsets = Vec::<i32>::with_capacity(values.len() + 1);
                 offsets.push(0);
                 for val in &values {
                     if !val.is_null() && !val.is_undefined() {
                         let object = val.as_object().context("failed to convert to object")?;
                         for key in object.keys() {
-                            key_column.push(key?);
+                            flatten_keys.push(key?);
                         }
                         for value in object.values() {
-                            value_column.push(value?);
+                            flatten_values.push(value?);
                         }
                     }
-                    offsets.push(key_column.len() as i32);
+                    offsets.push(flatten_keys.len() as i32);
                 }
                 let arrays = vec![
-                    self.build_array(&key_field, ctx, key_column)?,
-                    self.build_array(&value_field, ctx, value_column)?,
+                    self.build_array(&key_field, ctx, flatten_keys)?,
+                    self.build_array(&value_field, ctx, flatten_values)?,
                 ];
                 let struct_array = StructArray::new(Fields::from([key_field, value_field]), arrays, None);
 
