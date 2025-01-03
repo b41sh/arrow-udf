@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use arrow_array::*;
 use arrow_cast::pretty::{pretty_format_batches, pretty_format_columns};
-use arrow_schema::{DataType, Field, Schema};
+use arrow_schema::{DataType, Field, Fields, Schema};
 use arrow_udf_python::{CallMode, Runtime};
 use expect_test::{expect, Expect};
 
@@ -304,10 +304,10 @@ fn test_return_map() {
             CallMode::CalledOnNullInput,
             r#"
 def to_map(x, y):
-    if x is None || y is None:
+    if x is None or y is None:
         return None
     else:
-        return {"k1": x, "k2": y }
+        return {"k1": x, "k2": y}
 "#,
         )
         .unwrap();
